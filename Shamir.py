@@ -1,7 +1,7 @@
 import random
 import functools
 
-_PRIME = 2 ** 127 - 1
+_PRIME = 2 ** 521 - 1
 _RINT = functools.partial(random.SystemRandom().randint, 0)
 
 def _eval_at(poly, x, prime):
