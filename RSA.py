@@ -1,21 +1,15 @@
-# from __future__ import division
-# from __future__ import print_function
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
-# import shamir
-import random
-from math import ceil
-from decimal import Decimal
-# import functools
-from Shamir import make_random_shares, recover_secret
 from os.path import exists
+import os.path
 import os
+from os import path
+import subprocess
+from subprocess import Popen, PIPE
 import sys
-import random
-from math import ceil
-from decimal import Decimal
+import shamir_mnemonic
 
 # plain_text = input()
 
@@ -30,19 +24,19 @@ def RSA_encrypt(plain_text,k,n):
                     encoding=serialization.Encoding.PEM,
                     format=serialization.PrivateFormat.PKCS8,
                     encryption_algorithm=serialization.BestAvailableEncryption(bytes(plain_text,"UTF-8")))
-    
-    key = [char.decode() for char in private_bytes.splitlines()[1:-1]] 
-    key = "".join(key)
-    keys = [str(ord(char)) for char in key]
-    keys = "".join(keys)
-    # print(keys)
-    shares = make_random_shares(int(keys), k, n)
-    # print(shares)
-    secret = recover_secret(shares)
-    print(len(str(secret)))
-    secret = bytes(str(secret), "UTF-8")
-    # print(bytes(str(secret), "UTF-8"))
-    # shares = generate_shares(2,5,key)
+    key = bytes("".join(private_bytes.decode().splitlines()[1:-1]), "UTF-8")
+    hexdecimal = key.hex()
+    #decimal = int.from_bytes(key, byteorder=sys.byteorder)
+
+    if exists(f"Shard[{k}].txt") == False:
+        for file in os.listdir("/RSA-Coding-Challenge"):
+            if file.startswith("Shard"):
+                os.remove(file)
+        private = open(f"Shard[{k}].txt", "x")
+        private.close()
+
+    subprocess.call(f'cmd /c "shamir create {k}of{n} --master-secret={hexdecimal} > Shard[{k}].txt"', shell=False)
+    # shares = generate_shares(n,k,decimal)
     # print(shares)
     # secret = reconstruct_secret(shares)
     # print(secret)
@@ -58,17 +52,16 @@ def RSA_encrypt(plain_text,k,n):
         algorithm=hashes.SHA256(),
         label=None)
     )
-    
-    if exists(f"Shard[{k}].txt") == False:
-        for file in os.listdir("/RSA-Coding-Challenge"):
-            if file.startswith("Shard"):
-                os.remove(file)
-        private = open(f"Shard[{k}].txt", "x")
-    else:
-        private = open(f"Shard[{k}].txt", "w")
 
-    for shard in shares:
-        private.write(str(shard)+"\n")
+    with open(f"Shard[{k}].txt", "r") as private:
+        file = private.readlines()
+    
+    with open(f"Shard[{k}].txt", "w") as private:
+        for i in range(2, len(file)):
+            private.write(file[i])
+
+    private.close()    
+
 
     if exists("Public.txt") == False:
         public = open("Public.txt","x")
@@ -78,99 +71,50 @@ def RSA_encrypt(plain_text,k,n):
     public.write(str(public_bytes))
 
     public.close()
-    private.close()
 
-    return ciphertext, k, shares
+    return ciphertext
 
-def RSA_decrypt(ciphertext, k, shares):
-    private = open(f"Shard[{k}].txt", 'r')
-    shards = private.readlines()
-    private.close()
+def RSA_decrypt(ciphertext, Shardk):
+    if path.exists(Shardk) and str(Shardk).endswith(".txt"):
+        k = ""
+        for m in Shardk:
+            if m.isdigit():
+                k = k + m
+        k = int(k)        
+        private = open(f"Shard[{k}].txt", 'r')
+        shards = private.readlines()
+        private.close()
+        # interpreter = sys.executable
+        # print(interpreter)   
+        if len(shards) > k:
+            # hexkey = subprocess.run(['cmd /c "python -m shamir_mnemonic.cli recover "'], capture_output=True, shell=False)
+            # os.system('cmd /c "python -m shamir_mnemonic.cli recover > test.txt"')
+            for i in range(k):
+                # process = subprocess.call('cmd /c "python -m shamir_mnemonic.cli recover"', shell=False)
+                
+                # os.system(f'cmd /c "python -m shamir_mnemonic.cli recover < {shards[i]}"' )
+                process = Popen(['shamir', 'recover'], stdout=PIPE, stderr=PIPE, stdin=PIPE) 
+                hexkey = process.communicate(bytes(shards[i],"UTF-8"))   
+        else:
+            return "There are not enough shards to reconstuct the private key"
 
-    shards = shares
-    print(shards)
-    # for shard in shards:
-    #     shards[shards.index(shard)] = shard.strip()
-    # print(shards)
-    secret = recover_secret(shards)
-    print(secret)
-
-
-# RSA_decrypt(RSA_encrypt("figkgkglig",2,5)[0], RSA_encrypt("figkgkglig",2,5)[1], RSA_encrypt("figkgkglig",2,5)[2])
-
-FIELD_SIZE = 10**5
-
-
-def reconstruct_secret(shares):
-	"""
-	Combines individual shares (points on graph)
-	using Lagranges interpolation.
-
-	`shares` is a list of points (x, y) belonging to a
-	polynomial with a constant of our key.
-	"""
-	sums = 0
-	prod_arr = []
-
-	for j, share_j in enumerate(shares):
-		xj, yj = share_j
-		prod = Decimal(1)
-
-		for i, share_i in enumerate(shares):
-			xi, _ = share_i
-			if i != j:
-				prod *= Decimal(Decimal(xi)/(xi-xj))
-
-		prod *= yj
-		sums += Decimal(prod)
-
-	return int(round(Decimal(sums), 0))
-
-
-def polynom(x, coefficients):
-	"""
-	This generates a single point on the graph of given polynomial
-	in `x`. The polynomial is given by the list of `coefficients`.
-	"""
-	point = 0
-	# Loop through reversed list, so that indices from enumerate match the
-	# actual coefficient indices
-	for coefficient_index, coefficient_value in enumerate(coefficients[::-1]):
-		point += x ** coefficient_index * coefficient_value
-	return point
-
-
-def coeff(t, secret):
-	"""
-	Randomly generate a list of coefficients for a polynomial with
-	degree of `t` - 1, whose constant is `secret`.
-
-	For example with a 3rd degree coefficient like this:
-		3x^3 + 4x^2 + 18x + 554
-
-		554 is the secret, and the polynomial degree + 1 is
-		how many points are needed to recover this secret.
-		(in this case it's 4 points).
-	"""
-	coeff = [random.randrange(0, FIELD_SIZE) for _ in range(t - 1)]
-	coeff.append(secret)
-	return coeff
-
-
-def generate_shares(n, m, secret):
-	"""
-	Split given `secret` into `n` shares with minimum threshold
-	of `m` shares to recover this `secret`, using SSS algorithm.
-	"""
-	coefficients = coeff(m, secret)
-	shares = []
-
-	for i in range(1, n+1):
-		x = random.randrange(1, FIELD_SIZE)
-		shares.append((x, polynom(x, coefficients)))
-
-	return shares
+        print(hexkey)    
+        # str(hexkey).replace("Your master secret is: ","")
+        # print(hexkey)    
+        # key = bytes.fromhex(str(hexkey))
+        # print(key)          
+        # shards = shares
+        # print(shards)
+        # for shard in shards:
+        #     shards[shards.index(shard)] = shard.strip()
+        # print(shards)
+    else:
+        return "This isn't the correct file."    
 
 RSA_encrypt("figkgkglig",2,5)
+
+RSA_decrypt(RSA_encrypt("figkgkglig", 2, 5), "Shard[2].txt")
+
+
 
 #def test():
