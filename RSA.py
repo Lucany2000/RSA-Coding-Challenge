@@ -1,4 +1,3 @@
-from pydoc import plain
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives import hashes
@@ -12,9 +11,7 @@ from os import path
 import subprocess
 from subprocess import Popen, PIPE
 import sys
-import shamir_mnemonic
-
-# plain_text = input()
+import shamir_mnemonic    
 
 def RSA_encrypt(plain_text,k,n):
     
@@ -31,7 +28,7 @@ def RSA_encrypt(plain_text,k,n):
     hexdecimal = private_bytes.hex()
 
     if exists(f"Shard[{k}].txt") == False:
-        for file in os.listdir("/RSA-Coding-Challenge"):
+        for file in os.listdir():
             if file.startswith("Shard"):
                 os.remove(file)
         private = open(f"Shard[{k}].txt", "x")
@@ -70,45 +67,42 @@ def RSA_encrypt(plain_text,k,n):
 
     public.close()
 
-    return ciphertext, plain_text
+    return ciphertext
 
 def RSA_decrypt(ciphertext, Shardk):
-    if path.exists(Shardk) and str(Shardk).endswith(".txt"):
-        k = ""
-        for m in Shardk:
-            if m.isdigit():
-                k = k + m
-        k = int(k)        
-        private = open(f"Shard[{k}].txt", 'r')
-        shards = private.readlines()
-        private.close() 
-        if len(shards) > k:
-            process = Popen(['shamir', 'recover'], stdout=PIPE, stderr=PIPE, stdin=PIPE) 
-            for i in range(k):
-                process.stdin.write(bytes(shards[i],"UTF-8"))
-        else:
-            return "There are not enough shards to reconstuct the private key"
-
-        clean = str(process.stdout.read().strip())
-        pos = str(clean).find("Your master secret is: ")
-        key = bytes.fromhex((clean[pos:-1].replace("Your master secret is: ", "")))
-
-        private_key = load_pem_private_key(key, password=b'$ThEb3sTpa$sw0rd%Om3gaLamDa6Xl9', backend=default_backend())
-
-        plain_text = private_key.decrypt(
-        ciphertext,
-        padding.OAEP( mgf=padding.MGF1(algorithm=hashes.SHA256()),
-            algorithm=hashes.SHA256(),
-            label=None))
-        return plain_text.decode()
+    k = ""
+    for m in Shardk:
+        if m.isdigit():
+            k = k + m
+    k = int(k)        
+    private = open(f"Shard[{k}].txt", 'r')
+    shards = private.readlines()
+    private.close() 
+    if len(shards) > k:
+        process = Popen(['shamir', 'recover'], stdout=PIPE, stderr=PIPE, stdin=PIPE) 
+        for i in range(k):
+            process.stdin.write(bytes(shards[i],"UTF-8"))
     else:
-        return "This isn't the correct file."    
+        print("There are not enough shards to reconstuct the private key")
 
-def test():
-    plaintext = "hahsaahjfdahiashflafaohfhfwhw" 
-    if RSA_decrypt(RSA_encrypt(plaintext, 2, 5)[0], "Shard[2].txt") == plaintext:
-        return True
-    else:
-        return False
+    clean = str(process.stdout.read().strip())
+    pos = str(clean).find("Your master secret is: ")
+    key = bytes.fromhex((clean[pos:-1].replace("Your master secret is: ", "")))
 
-print(test())
+    private_key = load_pem_private_key(key, password=b'$ThEb3sTpa$sw0rd%Om3gaLamDa6Xl9', backend=default_backend())
+
+    plain_text = private_key.decrypt(
+    ciphertext,
+    padding.OAEP( mgf=padding.MGF1(algorithm=hashes.SHA256()),
+        algorithm=hashes.SHA256(),
+        label=None))
+    print(plain_text.decode())
+
+# def test():
+#     plaintext = "hahsaahjfdahiashflafaohfhfwhw" 
+#     if RSA_decrypt(RSA_encrypt(plaintext, 2, 5)[0], "Shard[2].txt") == plaintext:
+#         return True
+#     else:
+#         return False
+
+# print(test())
