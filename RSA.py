@@ -96,13 +96,5 @@ def RSA_decrypt(ciphertext, Shardk):
     padding.OAEP( mgf=padding.MGF1(algorithm=hashes.SHA256()),
         algorithm=hashes.SHA256(),
         label=None))
-    print(plain_text.decode())
+    return plain_text.decode() 
 
-# def test():
-#     plaintext = "hahsaahjfdahiashflafaohfhfwhw" 
-#     if RSA_decrypt(RSA_encrypt(plaintext, 2, 5)[0], "Shard[2].txt") == plaintext:
-#         return True
-#     else:
-#         return False
-
-# print(test())

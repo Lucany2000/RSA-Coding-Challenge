@@ -1,6 +1,6 @@
 from RSA import RSA_decrypt, RSA_encrypt
 
-decision = input("Woud you like to encrypt to decrypt? ")
+decision = input("Woud you like to encrypt or decrypt? ")
 if decision.lower() == "encrypt":
     print("This encryption algorithm will utilize a form of the Shamir Secret Sharing Algorithm which splits the encryption key into many shards.")
     plain_text = input("Insert plain text ")
@@ -25,3 +25,6 @@ elif decision.lower() == "decrypt":
         shardk = input("Please enter the file: Shard[number].txt ")
 
     RSA_decrypt(ciphertext,shardk)
+else:
+    while decision.lower() != "encrypt" or decision.lower() != "decrypt":
+        decision = input("Woud you like to encrypt or decrypt? ")
