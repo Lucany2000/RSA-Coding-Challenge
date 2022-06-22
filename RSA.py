@@ -1,7 +1,10 @@
+from pydoc import plain
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from cryptography.hazmat.backends import default_backend
 from os.path import exists
 import os.path
 import os
@@ -23,10 +26,9 @@ def RSA_encrypt(plain_text,k,n):
     private_bytes = private_key.private_bytes(
                     encoding=serialization.Encoding.PEM,
                     format=serialization.PrivateFormat.PKCS8,
-                    encryption_algorithm=serialization.BestAvailableEncryption(bytes(plain_text,"UTF-8")))
-    key = bytes("".join(private_bytes.decode().splitlines()[1:-1]), "UTF-8")
-    hexdecimal = key.hex()
-    #decimal = int.from_bytes(key, byteorder=sys.byteorder)
+                    encryption_algorithm=serialization.BestAvailableEncryption(b'$ThEb3sTpa$sw0rd%Om3gaLamDa6Xl9'))#bytes(plain_text,"UTF-8"))                         
+    
+    hexdecimal = private_bytes.hex()
 
     if exists(f"Shard[{k}].txt") == False:
         for file in os.listdir("/RSA-Coding-Challenge"):
@@ -36,10 +38,6 @@ def RSA_encrypt(plain_text,k,n):
         private.close()
 
     subprocess.call(f'cmd /c "shamir create {k}of{n} --master-secret={hexdecimal} > Shard[{k}].txt"', shell=False)
-    # shares = generate_shares(n,k,decimal)
-    # print(shares)
-    # secret = reconstruct_secret(shares)
-    # print(secret)
 
     public_key = private_key.public_key()
     public_bytes = public_key.public_bytes(
@@ -72,7 +70,7 @@ def RSA_encrypt(plain_text,k,n):
 
     public.close()
 
-    return ciphertext
+    return ciphertext, plain_text
 
 def RSA_decrypt(ciphertext, Shardk):
     if path.exists(Shardk) and str(Shardk).endswith(".txt"):
@@ -83,38 +81,34 @@ def RSA_decrypt(ciphertext, Shardk):
         k = int(k)        
         private = open(f"Shard[{k}].txt", 'r')
         shards = private.readlines()
-        private.close()
-        # interpreter = sys.executable
-        # print(interpreter)   
+        private.close() 
         if len(shards) > k:
-            # hexkey = subprocess.run(['cmd /c "python -m shamir_mnemonic.cli recover "'], capture_output=True, shell=False)
-            # os.system('cmd /c "python -m shamir_mnemonic.cli recover > test.txt"')
+            process = Popen(['shamir', 'recover'], stdout=PIPE, stderr=PIPE, stdin=PIPE) 
             for i in range(k):
-                # process = subprocess.call('cmd /c "python -m shamir_mnemonic.cli recover"', shell=False)
-                
-                # os.system(f'cmd /c "python -m shamir_mnemonic.cli recover < {shards[i]}"' )
-                process = Popen(['shamir', 'recover'], stdout=PIPE, stderr=PIPE, stdin=PIPE) 
-                hexkey = process.communicate(bytes(shards[i],"UTF-8"))   
+                process.stdin.write(bytes(shards[i],"UTF-8"))
         else:
             return "There are not enough shards to reconstuct the private key"
 
-        print(hexkey)    
-        # str(hexkey).replace("Your master secret is: ","")
-        # print(hexkey)    
-        # key = bytes.fromhex(str(hexkey))
-        # print(key)          
-        # shards = shares
-        # print(shards)
-        # for shard in shards:
-        #     shards[shards.index(shard)] = shard.strip()
-        # print(shards)
+        clean = str(process.stdout.read().strip())
+        pos = str(clean).find("Your master secret is: ")
+        key = bytes.fromhex((clean[pos:-1].replace("Your master secret is: ", "")))
+
+        private_key = load_pem_private_key(key, password=b'$ThEb3sTpa$sw0rd%Om3gaLamDa6Xl9', backend=default_backend())
+
+        plain_text = private_key.decrypt(
+        ciphertext,
+        padding.OAEP( mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None))
+        return plain_text.decode()
     else:
         return "This isn't the correct file."    
 
-RSA_encrypt("figkgkglig",2,5)
+def test():
+    plaintext = "hahsaahjfdahiashflafaohfhfwhw" 
+    if RSA_decrypt(RSA_encrypt(plaintext, 2, 5)[0], "Shard[2].txt") == plaintext:
+        return True
+    else:
+        return False
 
-RSA_decrypt(RSA_encrypt("figkgkglig", 2, 5), "Shard[2].txt")
-
-
-
-#def test():
+print(test())
